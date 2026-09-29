@@ -30,7 +30,14 @@ label{font-size:13px;color:var(--mut);display:grid;gap:4px}
 #modal{position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;align-items:center;justify-content:center;flex-direction:column;gap:10px;padding:14px;z-index:9}
 #modal img{max-width:100%;max-height:75vh;border-radius:6px}
 #log{font-size:12px;color:var(--mut);white-space:pre-wrap}
-@media(max-width:760px){#app{grid-template-columns:1fr;grid-template-rows:auto 60vh}#side{max-height:42vh}}
+#side{min-height:0}#app{height:100vh;height:100dvh}
+#zb{position:absolute;bottom:12px;inset-inline-start:12px;display:grid;gap:8px}
+#zb button{width:44px;height:44px;font-size:22px;padding:0;background:var(--panel);color:var(--ink);border:1px solid var(--line)}
+#umodal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:16px;z-index:10}
+#umodal .box{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px;width:100%;max-width:360px;display:grid;gap:10px}
+.lnk{background:none;color:var(--acc);padding:4px;text-decoration:underline}
+input,select{font-size:16px}#plan{touch-action:manipulation}
+@media(max-width:760px){#app{grid-template-columns:1fr;grid-template-rows:48dvh 1fr}#stage{order:-1}#side{border-inline-end:0;border-top:1px solid var(--line);padding-bottom:40px}#hint{font-size:13px;padding:6px 10px}}
 </style>
 </head>
 <body>
@@ -43,6 +50,7 @@ label{font-size:13px;color:var(--mut);display:grid;gap:4px}
     <input id="pw" type="password" placeholder="الباسورد" required autocomplete="current-password">
     <div id="err"></div>
     <button type="submit">دخول</button>
+    <button type="button" class="lnk" id="addu2">طلب حساب جديد</button>
   </form>
 </div>
 
@@ -55,12 +63,7 @@ label{font-size:13px;color:var(--mut);display:grid;gap:4px}
     <button class="g" id="demo">تنزيل ملف DXF تجريبي</button>
 
     <h2>2. الستايل</h2>
-    <select id="style">
-      <option value="modern">مودرن</option>
-      <option value="classic">كلاسيك</option>
-      <option value="scandi">سكاندنافي</option>
-      <option value="luxury">لوكس داكن</option>
-    </select>
+    <select id="style"></select>
 
     <h2>3. الكاميرا</h2>
     <button id="setcam">حدد مكان الكاميرا</button>
@@ -80,13 +83,31 @@ label{font-size:13px;color:var(--mut);display:grid;gap:4px}
       <label>سمك الحائط (م)<input id="wt" type="number" value="0.2" step="0.05"></label>
       <label>ارتفاع السقف (م)<input id="wh" type="number" value="3" step="0.1"></label>
     </div>
+    <h2>المستخدمين</h2>
+    <button class="g" id="addu" style="display:none">إضافة مستخدم جديد</button>
     <div id="log"></div>
   </aside>
 
   <main id="stage">
     <canvas id="plan"></canvas>
+    <div id="zb"><button id="zi" aria-label="تكبير">+</button><button id="zo" aria-label="تصغير">−</button></div>
     <div id="hint">ارفع ملف DXF للبدء.</div>
   </main>
+</div>
+
+<div id="umodal">
+  <div class="box">
+    <h1>إضافة مستخدم</h1>
+    <small>اكتب البيانات وابعتها لصاحب الموقع، وهو يضيفها في Firebase.</small>
+    <input id="un" placeholder="الاسم">
+    <input id="ue" type="email" placeholder="الإيميل" dir="ltr">
+    <input id="up" type="text" placeholder="الباسورد المقترح (6 حروف أو أكتر)" dir="ltr">
+    <div id="umsg" style="font-size:14px;min-height:1.3em"></div>
+    <button id="uadd">إضافة المستخدم الآن</button>
+    <button id="uwa">إرسال واتساب</button>
+    <button id="uem">إرسال بالإيميل</button>
+    <button class="g" id="uclose">إغلاق</button>
+  </div>
 </div>
 
 <div id="modal">
@@ -137,7 +158,7 @@ let auth = null;
 if (configured) { firebase.initializeApp(firebaseConfig); auth = firebase.auth(); }
 function showApp(on){ $("login").style.display = on ? "none" : "flex"; $("app").style.display = on ? "grid" : "none"; if(on) setTimeout(resize,50); }
 if (!configured) { $("err").textContent = "لسه ما حطيتش إعدادات Firebase في الكود."; }
-else auth.onAuthStateChanged(u => showApp(!!u));
+else auth.onAuthStateChanged(u => { showApp(!!u); if($("addu")) $("addu").style.display = (u && u.email.toLowerCase()===ADMIN_EMAIL.toLowerCase()) ? "" : "none"; });
 $("lf").onsubmit = async e => {
   e.preventDefault();
   if(!configured) return;
@@ -254,11 +275,21 @@ function buildModel(dxf, wt){
 
 /* ---------- الستايلات ---------- */
 const STYLES = {
-  modern: {wall:0xf1f1ee,floor:0x8e9297,fur:0x3b3f45,acc:0x1e2226,sky:0xdfe6ec,sun:0xffffff,si:0.9},
-  classic:{wall:0xe9dcc0,floor:0x7a4f2c,fur:0x6a3d25,acc:0xb08d3c,sky:0xf0e4cc,sun:0xffe2b0,si:0.85},
-  scandi: {wall:0xfafaf8,floor:0xd8b98a,fur:0x9db3bf,acc:0xe5e1d6,sky:0xf3f6f8,sun:0xfff6e5,si:1.0},
-  luxury: {wall:0x2c2c33,floor:0x1b1b1e,fur:0x8b6d3a,acc:0xd4b46a,sky:0x16161a,sun:0xffd9a0,si:0.7}
+  modern:   {n:"مودرن",wall:0xf1f1ee,floor:0x8e9297,fur:0x3b3f45,acc:0x1e2226,sky:0xdfe6ec,sun:0xffffff,si:0.9},
+  classic:  {n:"كلاسيك",wall:0xe9dcc0,floor:0x7a4f2c,fur:0x6a3d25,acc:0xb08d3c,sky:0xf0e4cc,sun:0xffe2b0,si:0.85},
+  neoclassic:{n:"نيو كلاسيك",wall:0xf3efe6,floor:0xcfc7b8,fur:0xe6dcc6,acc:0xc9a961,sky:0xf7f3ea,sun:0xfff0d0,si:0.9},
+  scandi:   {n:"سكاندنافي",wall:0xfafaf8,floor:0xd8b98a,fur:0x9db3bf,acc:0xe5e1d6,sky:0xf3f6f8,sun:0xfff6e5,si:1.0},
+  japandi:  {n:"جابندي",wall:0xeee7dc,floor:0xc9a77c,fur:0x8a7355,acc:0x2b2b2b,sky:0xf1ede6,sun:0xfff1d6,si:0.9},
+  minimal:  {n:"مينيمال أبيض",wall:0xffffff,floor:0xe4e4e4,fur:0xf2f2f2,acc:0x9a9a9a,sky:0xf4f4f4,sun:0xffffff,si:1.0},
+  industrial:{n:"إندستريال",wall:0xb9b6b0,floor:0x5b5b5b,fur:0x3a2f28,acc:0x1f1f1f,sky:0xc9ced3,sun:0xffffff,si:0.9},
+  rustic:   {n:"ريفي",wall:0xd8c3a5,floor:0x6b4a2f,fur:0x7c5a3a,acc:0x3e2c1c,sky:0xeadcc3,sun:0xffe0b0,si:0.85},
+  boho:     {n:"بوهيمي",wall:0xf0e0cc,floor:0xb98a5e,fur:0xc0623a,acc:0x2f6b62,sky:0xf6e9d6,sun:0xffe0b0,si:0.9},
+  mediterranean:{n:"متوسطي",wall:0xfbfbf7,floor:0xd9c9ae,fur:0x2a5ea8,acc:0xe8e2d0,sky:0xdcecf7,sun:0xffffff,si:1.0},
+  artdeco:  {n:"آرت ديكو",wall:0x1f3a3a,floor:0x141414,fur:0x0f5c5c,acc:0xd4af37,sky:0x1a2a2a,sun:0xffe9b0,si:0.7},
+  midnight: {n:"ليلي أزرق",wall:0x22303c,floor:0x3b3b3b,fur:0xd9d0c1,acc:0x7fa3b8,sky:0x18222b,sun:0xc8d8ff,si:0.6},
+  luxury:   {n:"لوكس داكن",wall:0x2c2c33,floor:0x1b1b1e,fur:0x8b6d3a,acc:0xd4b46a,sky:0x16161a,sun:0xffd9a0,si:0.7}
 };
+for (const k in STYLES) $("style").add(new Option(STYLES[k].n,k));
 
 /* ---------- المشهد ---------- */
 const scene = new THREE.Scene();
@@ -340,7 +371,7 @@ function fitPlan(){
   const c=$("stage"), asp=c.clientWidth/Math.max(c.clientHeight,1);
   const b=bounds||{cx:0,cz:0,w:10,d:10};
   let h=Math.max(b.d, b.w/asp)*0.6/zoom, w=h*asp;
-  planCam.left=-w+b.cx; planCam.right=w+b.cx; planCam.top=h+b.cz; planCam.bottom=-h+b.cz; planCam.updateProjectionMatrix();
+  planCam.left=-w; planCam.right=w; planCam.top=h; planCam.bottom=-h; planCam.updateProjectionMatrix();
   planCam.position.set(b.cx,60,b.cz); planCam.lookAt(b.cx,0,b.cz);
 }
 function drawMarker(){
@@ -358,7 +389,7 @@ function drawMarker(){
   scene.add(marker);
 }
 function loop(){ requestAnimationFrame(loop); if($("app").style.display!=="none") renderer.render(scene,planCam); }
-renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.setClearColor(0xdfe6ec); renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 
 $("plan").addEventListener("wheel",e=>{ e.preventDefault(); zoom=Math.min(6,Math.max(0.4,zoom*(e.deltaY<0?1.1:0.9))); fitPlan(); },{passive:false});
 $("plan").addEventListener("click",e=>{
@@ -371,6 +402,35 @@ $("plan").addEventListener("click",e=>{
 });
 $("setcam").onclick=()=>{ if(!model){ $("hint").textContent="ارفع ملف DXF الأول."; return; } mode="pos"; $("hint").textContent="دوس على مكان الكاميرا في المسقط."; };
 $("fov").oninput=drawMarker;
+$("zi").onclick=()=>{zoom=Math.min(6,zoom*1.25);fitPlan();};
+$("zo").onclick=()=>{zoom=Math.max(0.4,zoom/1.25);fitPlan();};
+const ADMIN_EMAIL="khalileid567@gmail.com";   // غيّره لإيميلك لو مختلف
+const isAdmin=()=>auth&&auth.currentUser&&auth.currentUser.email.toLowerCase()===ADMIN_EMAIL.toLowerCase();
+const openU=()=>{ const a=isAdmin(); $("uadd").style.display=a?"":"none"; $("uwa").style.display=$("uem").style.display=a?"none":""; $("umsg").textContent=""; $("umodal").style.display="flex"; };
+$("uadd").onclick=async()=>{
+  const e=$("ue").value.trim(),p=$("up").value.trim(), m=$("umsg");
+  if(!e||p.length<6){ m.style.color="#d33"; m.textContent="اكتب إيميل صحيح وباسورد 6 حروف على الأقل."; return; }
+  m.style.color=""; m.textContent="جاري الإضافة...";
+  let app2;
+  try{
+    app2=firebase.apps.find(a=>a.name==="second")||firebase.initializeApp(firebaseConfig,"second");
+    await app2.auth().createUserWithEmailAndPassword(e,p);
+    await app2.auth().signOut();
+    m.style.color="#1a8f4c"; m.textContent="تمت إضافة "+e+" ✔  ابعتله الإيميل والباسورد ورابط الموقع.";
+    $("ue").value=$("up").value="";
+  }catch(x){
+    m.style.color="#d33";
+    m.textContent = x.code==="auth/email-already-in-use"?"الإيميل ده مضاف قبل كده.":x.code==="auth/invalid-email"?"الإيميل غير صحيح.":x.code==="auth/operation-not-allowed"||x.code==="auth/admin-restricted-operation"?"التسجيل مقفول في Firebase. فعّل Enable create (sign-up).":"حصل خطأ: "+x.code;
+  }
+};
+$("addu").onclick=openU; $("addu2").onclick=openU; $("uclose").onclick=()=>$("umodal").style.display="none";
+function umsg(){
+  const e=$("ue").value.trim(),p=$("up").value.trim();
+  if(!e||p.length<6){ alert("اكتب إيميل صحيح وباسورد 6 حروف على الأقل."); return null; }
+  return "طلب إضافة مستخدم\nالاسم: "+$("un").value.trim()+"\nالإيميل: "+e+"\nالباسورد: "+p;
+}
+$("uwa").onclick=()=>{ const m=umsg(); if(m) window.open("https://wa.me/?text="+encodeURIComponent(m),"_blank"); };
+$("uem").onclick=()=>{ const m=umsg(); if(m) location.href="mailto:"+ADMIN_EMAIL+"?subject="+encodeURIComponent("طلب إضافة مستخدم")+"&body="+encodeURIComponent(m); };
 ["style","wt","wh"].forEach(id=>$(id).onchange=buildScene);
 
 /* ---------- اللقطة ---------- */
@@ -392,12 +452,14 @@ $("close").onclick=()=>$("modal").style.display="none";
 /* ---------- رفع الملف ---------- */
 $("file").onchange=async e=>{
   const f=e.target.files[0]; if(!f) return;
+  try {
   const buf=await f.arrayBuffer();
   let txt=new TextDecoder("utf-8").decode(buf);
   const dxf=parseDXF(txt);
   model=buildModel(dxf,+$("wt").value||0.2);
   camPos=camTgt=null; zoom=1; mode="";
   buildScene();
+  } catch(err){ $("log").textContent="خطأ: "+err.message; $("hint").textContent="حصل خطأ: "+err.message; return; }
   $("log").textContent=`حوائط: ${model.wl.length}\nأبواب وشبابيك: ${model.nOpen}${model.orphan?` (${model.orphan} مش على حائط)`:""}\nقطع فرش: ${model.furns.length}`+(model.unknown.length?`\nبلوكات غير معروفة (طلعت بوكس): ${model.unknown.join("، ")}`:"");
   $("hint").textContent=model.wl.length?"اضغط «حدد مكان الكاميرا».":"مالقيتش حوائط. تأكد إن اسم الـ Layer «حائط».";
 };
